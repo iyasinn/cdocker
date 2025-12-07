@@ -1,3 +1,3 @@
-#!bin/bash
+#!/bin/bash
 
 make clean && clear && make && sudo ./cdocker
