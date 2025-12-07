@@ -29,15 +29,19 @@ mount /prov to new root
 
 */
 
+struct child_args {
+    int sync_pipe;  // child reads from this, blocks until parent says go
+
+};
+
 int child_func(void *arg)
 {
     printf("Inside new PID + Mount namespace\n");
     printf("PID inside container: %d\n", getpid());
 
     struct child_args *cargs = (struct child_args *)arg;
-
     setup_rootfs();
-    // 1. Wait for parent to finish network setup
+
     char buf;
     printf("⭐ [child] Waiting for parent to set up network...\n");
     if (read(cargs->sync_pipe, &buf, 1) != 1)
@@ -45,18 +49,24 @@ int child_func(void *arg)
         perror("child read sync_pipe");
         return 1;
     }
-    close(cargs->sync_pipe); // done with it
+    close(cargs->sync_pipe);
+
+    // Set up DNS using resolve
+    // write to the resolve.conf ig 
+    FILE *resolv = fopen("/etc/resolv.conf", "w");
+    if (resolv) {
+        fprintf(resolv, "nameserver 8.8.8.8\n");
+        fclose(resolv);
+    }
 
     printf("⭐ About to exec shell...\n");
-
     if (sethostname("cdocker", strlen("cdocker")) != 0)
     {
         perror("sethostname");
     }
-    // Now run a shell by replacing our current process with a shell process
+
     char *const args[] = {"/bin/sh", NULL};
     execv("/bin/sh", args);
-
     perror("execv /bin/sh failed");
     return 1;
 }
